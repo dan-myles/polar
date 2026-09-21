@@ -103,6 +103,7 @@ class TestSerialize:
             "email": "a@example.com",
             "name": None,
             "country": None,
+            "tax_id": None,
         }
 
 

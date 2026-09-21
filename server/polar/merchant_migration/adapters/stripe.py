@@ -10,6 +10,7 @@ from typing import Any
 import stripe as stripe_lib
 
 from polar.kit.schemas import Schema
+from polar.tax.tax_id import TaxID, TaxIDFormat, from_stripe_tax_id
 
 from ..canonical import (
     CanonicalAccount,
@@ -260,7 +261,10 @@ class StripeAdapter:
     async def _extract_customer_page(
         self, cursor: StripeExtractionCursor
     ) -> ExtractionPage:
-        params: stripe_lib.params.CustomerListParams = {"limit": PAGE_SIZE}
+        params: stripe_lib.params.CustomerListParams = {
+            "limit": PAGE_SIZE,
+            "expand": ["data.tax_ids"],
+        }
         if cursor.starting_after is not None:
             params["starting_after"] = cursor.starting_after
         customers = await self._client.v1.customers.list_async(params=params)
@@ -439,7 +443,29 @@ class StripeAdapter:
             email=customer.email or "",
             name=customer.name,
             country=address.country if address is not None else None,
+            tax_id=self._map_tax_id(customer),
         )
+
+    def _map_tax_id(self, customer: stripe_lib.Customer) -> TaxID | None:
+        mapped: list[TaxID] = []
+        for item in self._stripe_tax_ids(customer):
+            tax_id = from_stripe_tax_id(item.get("type") or "", item.get("value"))
+            if tax_id is not None:
+                mapped.append(tax_id)
+        if not mapped:
+            return None
+        for tax_id in mapped:
+            if tax_id[1] is TaxIDFormat.eu_vat:
+                return tax_id
+        return mapped[0]
+
+    def _stripe_tax_ids(self, customer: stripe_lib.Customer) -> Sequence[Any]:
+        tax_ids = customer.get("tax_ids")
+        if tax_ids is None:
+            return []
+        if isinstance(tax_ids, list):
+            return tax_ids
+        return tax_ids.get("data") or []
 
     def _resolve_payment_method(
         self, subscription: stripe_lib.Subscription

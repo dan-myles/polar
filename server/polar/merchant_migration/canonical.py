@@ -9,6 +9,7 @@ from typing import Any
 from fastapi.encoders import jsonable_encoder
 
 from polar.models.merchant_migration_record import MerchantMigrationRecordType
+from polar.tax.tax_id import TaxID, TaxIDFormat
 
 
 class CanonicalPricingScheme(StrEnum):
@@ -98,6 +99,7 @@ class CanonicalCustomer:
     email: str
     name: str | None
     country: str | None
+    tax_id: TaxID | None = None
 
     type = MerchantMigrationRecordType.customer
 
@@ -215,11 +217,17 @@ def deserialize(
                 archived=data.get("archived", False),
             )
         case MerchantMigrationRecordType.customer:
+            tax_id_data = data.get("tax_id")
             return CanonicalCustomer(
                 source_id=data["source_id"],
                 email=data["email"],
                 name=data["name"],
                 country=data["country"],
+                tax_id=(
+                    (tax_id_data[0], TaxIDFormat(tax_id_data[1]))
+                    if tax_id_data
+                    else None
+                ),
             )
         case MerchantMigrationRecordType.subscription:
             payment_method = data["payment_method"]
