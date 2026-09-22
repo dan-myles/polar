@@ -1,0 +1,30 @@
+{% macro render_call() %}
+{%- if arguments -%}
+{{ call_path }}(
+{% for argument in arguments %}    {{ argument | typescript_literal | indent(4) }},
+{% endfor %}  )
+{%- else -%}
+{{ call_path }}()
+{%- endif -%}
+{% endmacro -%}
+import { Effect{% if pagination %}, Stream{% endif %} } from "effect";
+import { FetchHttpClient } from "effect/unstable/http";
+import { Polar } from "@polar-sh/effect/{{ version }}";
+
+const program = Effect.gen(function* () {
+  const polar = yield* Polar;
+{%- if pagination %}
+  yield* {{ render_call() }}.pipe(Stream.runForEach((item) => Effect.log(item)));
+{%- elif has_response %}
+  const response = yield* {{ render_call() }};
+  yield* Effect.log(response);
+{%- else %}
+  yield* {{ render_call() }};
+{%- endif %}
+});
+
+program.pipe(
+  Effect.provide(Polar.layer({ accessToken: "polar_oat_xxx" })),
+  Effect.provide(FetchHttpClient.layer),
+  Effect.runPromise,
+);

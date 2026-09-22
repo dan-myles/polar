@@ -28,3 +28,13 @@ Generate the Python SDK by running the following command:
 ```bash
 uv run -m cli generate openapi.json ../python --language python --clear
 ```
+
+### Effect
+
+The Effect generator is located in the `sdk/generator/effect` folder. It generates `@polar-sh/effect`, an [Effect](https://effect.website) SDK where models are `Schema` codecs, operations return `Effect`s with typed, tagged errors, and paginated endpoints are exposed as `Stream`s. The runtime (`PolarClient.ts`, `Webhooks.ts`) is hand-written in the template; the emitter renders models, errors, services and webhooks from the IR. Post processing includes formatting with oxfmt, linting with oxlint, type checking with tsc, building with tsdown and testing with vitest.
+
+Generate the Effect SDK by running the following command:
+
+```bash
+uv run -m cli generate openapi/* ../effect --language effect --clear
+```
