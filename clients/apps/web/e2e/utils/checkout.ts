@@ -1,6 +1,6 @@
 import type { schemas } from '@polar-sh/client'
 import { expect } from 'vitest'
-import { actionClicking, actionFilling, type App } from './app'
+import { actionClicking, actionFilling, actionMatching, type App } from './app'
 import { BILLING_ADDRESS, CARD, ORG_TOKEN, STRIPE_FRAME } from './constants'
 import type { ProductSpec } from './products'
 
@@ -83,6 +83,21 @@ export class CheckoutPage {
       { amount },
       async () => (await this.state()).amount === cents,
     )
+  }
+
+  async setSeats(seats: number): Promise<void> {
+    const plan = await this.app.plan(
+      'Find the buttons that increase and decrease the number of seats',
+    )
+    let current = (await this.state()).seats ?? 1
+    while (current !== seats) {
+      const next = current + Math.sign(seats - current)
+      await this.app.click(
+        actionMatching(plan, next > current ? /increase/i : /decrease/i),
+        async () => (await this.state()).seats === next,
+      )
+      current = next
+    }
   }
 
   async payWithCard(name = 'E2E Tester'): Promise<void> {

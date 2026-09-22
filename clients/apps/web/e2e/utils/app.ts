@@ -264,6 +264,12 @@ export const actionFilling = (actions: Action[], variable: string): Action => {
   return action
 }
 
+export const actionMatching = (actions: Action[], pattern: RegExp): Action => {
+  const action = actions.find((a) => pattern.test(a.description))
+  if (!action) throw new Error(`No action matches ${pattern}`)
+  return action
+}
+
 export const actionClicking = (actions: Action[]): Action => {
   const action = actions.find((a) => a.method === 'click')
   if (!action) throw new Error('No click action in the plan')

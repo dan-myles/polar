@@ -31,6 +31,7 @@ from shared import (
 
 WEB_ENV_FILE = CLIENTS_DIR / "apps" / "web" / ".env.local"
 OPENAI_KEYS_URL = "https://platform.openai.com/api-keys"
+OPENAI_KEY_1PASSWORD_ITEM = "op://Engineering/OpenAI E2E tests/credential"
 
 
 def _script(*args: str) -> subprocess.CompletedProcess | None:
@@ -88,9 +89,25 @@ def _openai_key_rejected(key: str) -> bool:
     return False
 
 
+def _openai_key_from_1password() -> str | None:
+    result = run_command(["op", "read", "--no-newline", OPENAI_KEY_1PASSWORD_ITEM], capture=True, timeout=30)
+    if result is None or result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def _find_openai_key() -> str | None:
+    key = _openai_key_from_1password()
+    if key and not _openai_key_rejected(key):
+        step_status(True, "OpenAI key", f"from 1Password ({OPENAI_KEY_1PASSWORD_ITEM})")
+        return key
+    return _prompt_openai_key()
+
+
 def _prompt_openai_key() -> str | None:
     console.print()
     console.print("  Stagehand drives the browser with an OpenAI model, so the test needs an API key.")
+    console.print(f"  Teammates share one in 1Password as {OPENAI_KEY_1PASSWORD_ITEM}; with the op CLI installed it is picked up automatically.")
     console.print(f"  Create one at [link={OPENAI_KEYS_URL}]{OPENAI_KEYS_URL}[/link]")
     key = typer.prompt(
         "  Paste it here (leave empty to add it later)",
@@ -137,7 +154,7 @@ def register(app: typer.Typer, prompt_setup: callable) -> None:
 
         secrets = {"E2E_ORG_TOKEN": values["E2E_ORG_TOKEN"]}
         if not _has_openai_key():
-            key = _prompt_openai_key()
+            key = _find_openai_key()
             if key:
                 secrets["OPENAI_API_KEY"] = key
         update_secrets(secrets)
@@ -153,7 +170,28 @@ def register(app: typer.Typer, prompt_setup: callable) -> None:
         next_steps.add_column(style="dim")
         if not _stripe_listener_running():
             next_steps.add_row("dev stripe --listen", "Forward Stripe webhooks, the trial needs them")
-        next_steps.add_row("pnpm --filter web test:e2e", "Run the test, from clients/")
+        next_steps.add_row("dev e2e run", "Run the tests, from anywhere in the repo")
+        next_steps.add_row("dev e2e run --headed", "Same, with a visible browser")
         console.print()
         console.print(Panel(next_steps, title="[bold green]Next[/bold green]", border_style="green", padding=(1, 2)))
         console.print()
+
+    @e2e_app.command("run")
+    def run(
+        pattern: Annotated[
+            str | None,
+            typer.Argument(help="Only run test files whose path contains this text"),
+        ] = None,
+        headed: Annotated[
+            bool,
+            typer.Option("--headed", help="Show the browser while the tests run"),
+        ] = False,
+    ) -> None:
+        """Run the E2E tests against the local stack."""
+        script = "test:e2e:headed" if headed else "test:e2e"
+        result = run_command(
+            ["pnpm", "--filter", "web", script, *([pattern] if pattern else [])],
+            cwd=CLIENTS_DIR,
+            capture=False,
+        )
+        raise typer.Exit(result.returncode if result else 1)
