@@ -24,9 +24,9 @@ class TestBeforeSend:
             },
             "message": "Failed for alice@example.com",
             "logentry": {
-                "message": "Failed for %s",
-                "formatted": "Failed for alice@example.com",
-                "params": ["alice@example.com"],
+                "message": "Failed for %s with card %s",
+                "formatted": "Failed for alice@example.com with card 4242424242424242",
+                "params": ["alice@example.com", 4242424242424242],
             },
             "breadcrumbs": {"values": [{"message": "Started for alice@example.com"}]},
         }
@@ -48,9 +48,8 @@ class TestBeforeSend:
             },
             "message": f"Failed for {REDACTED}",
             "logentry": {
-                "message": "Failed for %s",
-                "formatted": f"Failed for {REDACTED}",
-                "params": [REDACTED],
+                "message": "Failed for %s with card %s",
+                "formatted": f"Failed for {REDACTED} with card {REDACTED}",
             },
             "breadcrumbs": {"values": [{"message": f"Started for {REDACTED}"}]},
         }

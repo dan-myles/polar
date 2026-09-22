@@ -59,7 +59,10 @@ def before_send(event: Event, hint: Hint) -> Event | None:
         event["message"] = budget.scrub_text(message)
     logentry = event.get("logentry")
     if logentry is not None:
-        scrubbed = _scrub_log_value(logentry, budget=budget)
+        scrubbed = _scrub_log_value(
+            {key: value for key, value in logentry.items() if key != "params"},
+            budget=budget,
+        )
         event["logentry"] = (
             scrubbed if isinstance(scrubbed, dict) else {"formatted": scrubbed}
         )
