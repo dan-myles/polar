@@ -10,7 +10,7 @@ from typing import Any
 import stripe as stripe_lib
 
 from polar.kit.schemas import Schema
-from polar.tax.tax_id import TaxID, TaxIDFormat, from_stripe_tax_id
+from polar.tax.tax_id import COUNTRY_TAX_ID_MAP, TaxID, TaxIDFormat, from_stripe_tax_id
 
 from ..canonical import (
     CanonicalAccount,
@@ -437,16 +437,19 @@ class StripeAdapter:
         return bool(comment and comment.startswith(CANCELLATION_COMMENT_PREFIX))
 
     def _map_customer(self, customer: stripe_lib.Customer) -> CanonicalCustomer:
-        address = customer.address
+        address = customer.get("address")
+        country = address.get("country") if address is not None else None
         return CanonicalCustomer(
             source_id=customer.id,
             email=customer.email or "",
             name=customer.name,
-            country=address.country if address is not None else None,
-            tax_id=self._map_tax_id(customer),
+            country=country,
+            tax_id=self._map_tax_id(customer, country),
         )
 
-    def _map_tax_id(self, customer: stripe_lib.Customer) -> TaxID | None:
+    def _map_tax_id(
+        self, customer: stripe_lib.Customer, country: str | None
+    ) -> TaxID | None:
         tax_ids = customer.get("tax_ids")
         mapped: list[TaxID] = []
         for item in (tax_ids["data"] if tax_ids else None) or []:
@@ -455,10 +458,19 @@ class StripeAdapter:
                 mapped.append(tax_id)
         if not mapped:
             return None
+
+        allowed = COUNTRY_TAX_ID_MAP.get(country.upper()) if country else None
+        if allowed is not None:
+            for fmt in allowed:
+                for tax_id in mapped:
+                    if tax_id[1] is fmt:
+                        return tax_id
+            return None
+
         for tax_id in mapped:
             if tax_id[1] is TaxIDFormat.eu_vat:
                 return tax_id
-        return mapped[0]
+        return None
 
     def _resolve_payment_method(
         self, subscription: stripe_lib.Subscription
