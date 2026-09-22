@@ -20,6 +20,7 @@ from shared import (
     CLIENTS_DIR,
     ROOT_DIR,
     SERVER_DIR,
+    check_command_exists,
     console,
     read_secrets,
     run_command,
@@ -89,7 +90,27 @@ def _openai_key_rejected(key: str) -> bool:
     return False
 
 
+def _ensure_op_cli() -> bool:
+    if check_command_exists("op"):
+        return True
+    if not check_command_exists("brew"):
+        console.print("  [dim]The 1Password CLI is not installed: https://developer.1password.com/docs/cli/get-started/[/dim]")
+        return False
+    if not typer.confirm("  Install the 1Password CLI with Homebrew to fetch the shared OpenAI key?", default=True):
+        return False
+    with step_spinner("Installing the 1Password CLI..."):
+        result = run_command(["brew", "install", "1password-cli"], capture=True)
+    if result is None or result.returncode != 0 or not check_command_exists("op"):
+        step_failed("1Password CLI", "installation failed", result, hints=("brew install 1password-cli",))
+        return False
+    step_status(True, "1Password CLI", "installed")
+    console.print("  [dim]Enable Settings → Developer → \"Integrate with 1Password CLI\" in the 1Password app so op can unlock with Touch ID.[/dim]")
+    return True
+
+
 def _openai_key_from_1password() -> str | None:
+    if not _ensure_op_cli():
+        return None
     result = run_command(["op", "read", "--no-newline", OPENAI_KEY_1PASSWORD_ITEM], capture=True, timeout=30)
     if result is None or result.returncode != 0:
         return None
