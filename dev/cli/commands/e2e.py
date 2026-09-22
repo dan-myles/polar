@@ -7,6 +7,7 @@ the central secrets file and flow into clients/apps/web/.env.local from there.
 """
 
 import subprocess
+import tempfile
 import urllib.error
 import urllib.request
 from typing import Annotated
@@ -20,6 +21,7 @@ from shared import (
     CLIENTS_DIR,
     ROOT_DIR,
     SERVER_DIR,
+    check_command_exists,
     console,
     read_secrets,
     run_command,
@@ -32,6 +34,8 @@ from shared import (
 WEB_ENV_FILE = CLIENTS_DIR / "apps" / "web" / ".env.local"
 OPENAI_KEYS_URL = "https://platform.openai.com/api-keys"
 OPENAI_KEY_LOCATION = "1Password → Local development → Open AI Token → credentials"
+VERCEL_PROJECT = "polar"
+VERCEL_KEY_NAME = "E2E_OPENAI_API_KEY"
 
 
 def _script(*args: str) -> subprocess.CompletedProcess | None:
@@ -89,6 +93,45 @@ def _openai_key_rejected(key: str) -> bool:
     return False
 
 
+def _vercel(*args: str, interactive: bool = False) -> subprocess.CompletedProcess | None:
+    cli = ["vercel"] if check_command_exists("vercel") else ["pnpm", "dlx", "vercel@latest"]
+    return run_command(
+        [*cli, *args], cwd=CLIENTS_DIR, capture=not interactive, timeout=None if interactive else 120
+    )
+
+
+def _vercel_ok(*args: str) -> bool:
+    result = _vercel(*args)
+    return result is not None and result.returncode == 0
+
+
+def _openai_key_from_vercel() -> str | None:
+    if not _vercel_ok("whoami"):
+        if not typer.confirm("  Log in to Vercel to fetch the shared OpenAI key? (opens the browser)", default=True):
+            return None
+        _vercel("login", interactive=True)
+        if not _vercel_ok("whoami"):
+            return None
+    if not (CLIENTS_DIR / ".vercel" / "project.json").exists() and not _vercel_ok(
+        "link", "--yes", "--project", VERCEL_PROJECT
+    ):
+        console.print(f"  [yellow]Could not link the {VERCEL_PROJECT} Vercel project, ask for access to the polar-sh team.[/yellow]")
+        return None
+    with tempfile.TemporaryDirectory() as tmp:
+        pulled = f"{tmp}/vercel.env"
+        with step_spinner("Fetching the OpenAI key from Vercel..."):
+            ok = _vercel_ok("env", "pull", pulled, "--environment", "development", "--yes")
+        key = dotenv_values(pulled).get(VERCEL_KEY_NAME) if ok else None
+    if not key:
+        console.print(f"  [yellow]{VERCEL_KEY_NAME} is not set as a Development variable on the {VERCEL_PROJECT} Vercel project.[/yellow]")
+        return None
+    if _openai_key_rejected(key):
+        console.print(f"  [red]OpenAI rejected the {VERCEL_KEY_NAME} value from Vercel.[/red]")
+        return None
+    step_status(True, "OpenAI key", f"from Vercel ({VERCEL_PROJECT} › Development › {VERCEL_KEY_NAME})")
+    return key
+
+
 def _prompt_openai_key() -> str | None:
     console.print()
     console.print("  Stagehand drives the browser with an OpenAI model, so the tests need an API key.")
@@ -139,7 +182,7 @@ def register(app: typer.Typer, prompt_setup: callable) -> None:
 
         secrets = {"E2E_ORG_TOKEN": values["E2E_ORG_TOKEN"]}
         if not _has_openai_key():
-            key = _prompt_openai_key()
+            key = _openai_key_from_vercel() or _prompt_openai_key()
             if key:
                 secrets["OPENAI_API_KEY"] = key
         update_secrets(secrets)
@@ -147,7 +190,7 @@ def register(app: typer.Typer, prompt_setup: callable) -> None:
         step_status(True, "clients/apps/web/.env.local", ", ".join(secrets))
         if not _has_openai_key():
             console.print(
-                f"  [yellow]No OPENAI_API_KEY yet: copy it from {OPENAI_KEY_LOCATION}, then rerun dev e2e setup[/yellow]"
+                f"  [yellow]No OPENAI_API_KEY yet: add {VERCEL_KEY_NAME} to the {VERCEL_PROJECT} Vercel project or copy it from {OPENAI_KEY_LOCATION}, then rerun dev e2e setup[/yellow]"
             )
 
         next_steps = Table(show_header=False, box=None, padding=(0, 2))
