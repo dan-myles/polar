@@ -31,7 +31,7 @@ from shared import (
 
 WEB_ENV_FILE = CLIENTS_DIR / "apps" / "web" / ".env.local"
 OPENAI_KEYS_URL = "https://platform.openai.com/api-keys"
-OPENAI_KEY_1PASSWORD_ITEM = "op://Engineering/OpenAI E2E tests/credential"
+OPENAI_KEY_1PASSWORD_ITEM = "op://Local development/Open AI Token/credentials"
 
 
 def _script(*args: str) -> subprocess.CompletedProcess | None:
