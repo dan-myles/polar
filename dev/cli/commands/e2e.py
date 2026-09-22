@@ -20,7 +20,6 @@ from shared import (
     CLIENTS_DIR,
     ROOT_DIR,
     SERVER_DIR,
-    check_command_exists,
     console,
     read_secrets,
     run_command,
@@ -32,7 +31,7 @@ from shared import (
 
 WEB_ENV_FILE = CLIENTS_DIR / "apps" / "web" / ".env.local"
 OPENAI_KEYS_URL = "https://platform.openai.com/api-keys"
-OPENAI_KEY_1PASSWORD_ITEM = "op://Local development/Open AI Token/credentials"
+OPENAI_KEY_LOCATION = "1Password → Local development → Open AI Token → credentials"
 
 
 def _script(*args: str) -> subprocess.CompletedProcess | None:
@@ -90,46 +89,11 @@ def _openai_key_rejected(key: str) -> bool:
     return False
 
 
-def _ensure_op_cli() -> bool:
-    if check_command_exists("op"):
-        return True
-    if not check_command_exists("brew"):
-        console.print("  [dim]The 1Password CLI is not installed: https://developer.1password.com/docs/cli/get-started/[/dim]")
-        return False
-    if not typer.confirm("  Install the 1Password CLI with Homebrew to fetch the shared OpenAI key?", default=True):
-        return False
-    with step_spinner("Installing the 1Password CLI..."):
-        result = run_command(["brew", "install", "1password-cli"], capture=True)
-    if result is None or result.returncode != 0 or not check_command_exists("op"):
-        step_failed("1Password CLI", "installation failed", result, hints=("brew install 1password-cli",))
-        return False
-    step_status(True, "1Password CLI", "installed")
-    console.print("  [dim]Enable Settings → Developer → \"Integrate with 1Password CLI\" in the 1Password app so op can unlock with Touch ID.[/dim]")
-    return True
-
-
-def _openai_key_from_1password() -> str | None:
-    if not _ensure_op_cli():
-        return None
-    result = run_command(["op", "read", "--no-newline", OPENAI_KEY_1PASSWORD_ITEM], capture=True, timeout=30)
-    if result is None or result.returncode != 0:
-        return None
-    return result.stdout.strip() or None
-
-
-def _find_openai_key() -> str | None:
-    key = _openai_key_from_1password()
-    if key and not _openai_key_rejected(key):
-        step_status(True, "OpenAI key", f"from 1Password ({OPENAI_KEY_1PASSWORD_ITEM})")
-        return key
-    return _prompt_openai_key()
-
-
 def _prompt_openai_key() -> str | None:
     console.print()
-    console.print("  Stagehand drives the browser with an OpenAI model, so the test needs an API key.")
-    console.print(f"  Teammates share one in 1Password as {OPENAI_KEY_1PASSWORD_ITEM}; with the op CLI installed it is picked up automatically.")
-    console.print(f"  Create one at [link={OPENAI_KEYS_URL}]{OPENAI_KEYS_URL}[/link]")
+    console.print("  Stagehand drives the browser with an OpenAI model, so the tests need an API key.")
+    console.print(f"  Copy the shared one from {OPENAI_KEY_LOCATION}.")
+    console.print(f"  [dim]No access? Create your own at [link={OPENAI_KEYS_URL}]{OPENAI_KEYS_URL}[/link][/dim]")
     key = typer.prompt(
         "  Paste it here (leave empty to add it later)",
         default="",
@@ -175,7 +139,7 @@ def register(app: typer.Typer, prompt_setup: callable) -> None:
 
         secrets = {"E2E_ORG_TOKEN": values["E2E_ORG_TOKEN"]}
         if not _has_openai_key():
-            key = _find_openai_key()
+            key = _prompt_openai_key()
             if key:
                 secrets["OPENAI_API_KEY"] = key
         update_secrets(secrets)
@@ -183,7 +147,7 @@ def register(app: typer.Typer, prompt_setup: callable) -> None:
         step_status(True, "clients/apps/web/.env.local", ", ".join(secrets))
         if not _has_openai_key():
             console.print(
-                f"  [yellow]No OPENAI_API_KEY yet: create one at {OPENAI_KEYS_URL}, then rerun dev e2e setup[/yellow]"
+                f"  [yellow]No OPENAI_API_KEY yet: copy it from {OPENAI_KEY_LOCATION}, then rerun dev e2e setup[/yellow]"
             )
 
         next_steps = Table(show_header=False, box=None, padding=(0, 2))
