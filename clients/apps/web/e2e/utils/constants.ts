@@ -2,8 +2,7 @@ export const API_URL = (
   process.env.E2E_API_URL ?? 'http://127.0.0.1:8000'
 ).replace(/\/$/, '')
 
-export const CHECKOUT_LINK =
-  process.env.E2E_CHECKOUT_LINK || 'polar_cl_e2e_seed_trial_subscription'
+export const ORG_TOKEN = process.env.E2E_ORG_TOKEN
 
 export const CARD = { number: '4242424242424242', expiry: '1234', cvc: '123' }
 

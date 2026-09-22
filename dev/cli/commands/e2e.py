@@ -1,7 +1,7 @@
-"""Set up what the Stagehand E2E checkout test needs on the local stack.
+"""Set up what the Stagehand E2E tests need on the local stack.
 
-The test checks out a free trial through a checkout link and cancels it, so it
-needs a product with a trial, an organization that allows repeated trials, and
+The tests create their own products and checkouts through the API, so they need
+an organization access token, an organization that allows repeated trials, and
 an OpenAI key for Stagehand. All of that is per machine, so the values land in
 the central secrets file and flow into clients/apps/web/.env.local from there.
 """
@@ -120,7 +120,7 @@ def register(app: typer.Typer, prompt_setup: callable) -> None:
             typer.Option("--org", help="Organization slug (prompted when there are several)"),
         ] = None,
     ) -> None:
-        """Create the trial product and checkout link the E2E test needs, and point the test at them."""
+        """Create an organization token for the E2E tests and allow repeated trials."""
         console.print("\n[bold blue]E2E setup[/bold blue]\n")
         slug = _pick_org(org)
 
@@ -132,11 +132,10 @@ def register(app: typer.Typer, prompt_setup: callable) -> None:
         values = dict(
             line.split("=", 1) for line in result.stdout.splitlines() if "=" in line
         )
-        step_status(True, f"{values['PRODUCT_NAME']} product with a 7-day trial in {slug}")
+        step_status(True, f"Organization token for {slug}", "the tests create products and checkouts with it")
         step_status(True, "Repeated trials allowed", "prevent_trial_abuse off")
-        step_status(True, "Checkout link", values["E2E_CHECKOUT_LINK"])
 
-        secrets = {"E2E_CHECKOUT_LINK": values["E2E_CHECKOUT_LINK"]}
+        secrets = {"E2E_ORG_TOKEN": values["E2E_ORG_TOKEN"]}
         if not _has_openai_key():
             key = _prompt_openai_key()
             if key:

@@ -17,6 +17,7 @@ type Page = NonNullable<Awaited<ReturnType<Browser['context']['activePage']>>>
 export type Action = Awaited<ReturnType<Stagehand['observe']>>['data'][number]
 type Variables = Record<string, string>
 type Check = () => Promise<boolean>
+export type Meta = { checkoutUrl?: string }
 type ConsoleCall = {
   type: string
   args: Array<{ value?: unknown; description?: string }>
@@ -57,10 +58,11 @@ export class App {
     readonly browser: Browser,
     readonly stagehand: Stagehand,
     readonly page: Page,
+    readonly meta: Meta,
     private readonly artifacts: string,
   ) {}
 
-  static async launch(name: string): Promise<App> {
+  static async launch(name: string, meta: Meta): Promise<App> {
     if (!OPENAI_API_KEY) {
       throw new Error(
         'OPENAI_API_KEY is not set: export it or add it to apps/web/.env.local',
@@ -96,7 +98,7 @@ export class App {
         .join(' ')
       appendFileSync(`${artifacts}browser.log`, `[${type}] ${text}\n`)
     })
-    return new App(browser, stagehand, page, artifacts)
+    return new App(browser, stagehand, page, meta, artifacts)
   }
 
   onCleanup(cleanup: () => Promise<void>): void {

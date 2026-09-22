@@ -75,7 +75,7 @@ dev help                # Show all commands
 ### End-to-end Tests
 
 ```bash
-dev e2e setup                       # Trial product, checkout link, and env for the Stagehand checkout test
+dev e2e setup                       # Organization token and settings for the Stagehand E2E tests
 dev e2e setup --org acme-corp       # Pick the organization up front instead of being asked
 ```
 

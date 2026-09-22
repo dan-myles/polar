@@ -8,9 +8,6 @@ on:
       api_url:
         description: "API base URL (default: sandbox)"
         type: string
-      checkout_link:
-        description: "Checkout link client secret (default: the E2E_CHECKOUT_LINK secret)"
-        type: string
 
 permissions:
   contents: read
@@ -23,7 +20,7 @@ jobs:
 
     env:
       E2E_API_URL: ${{ inputs.api_url || 'https://sandbox-api.polar.sh' }}
-      E2E_CHECKOUT_LINK: ${{ inputs.checkout_link || secrets.E2E_CHECKOUT_LINK }}
+      E2E_ORG_TOKEN: ${{ secrets.E2E_ORG_TOKEN }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
     steps:
@@ -80,13 +77,13 @@ jobs:
           [ -f "$RESULTS" ] || echo '{"testResults": []}' > "$RESULTS"
           jq -n --arg channel "$SLACK_CHANNEL_ID" --arg source "$SOURCE_URL" --arg run "$RUN_URL" \
             --arg artifacts "$ARTIFACT_URL" --arg event "$GITHUB_EVENT_NAME" \
-            --arg checkout "$E2E_API_URL/v1/checkout-links/$E2E_CHECKOUT_LINK/redirect" \
             --slurpfile results "$RESULTS" '
             [ $results[0].testResults[] | .name as $file | .assertionResults[] | select(.status == "failed")
               | { name: (.ancestorTitles | join(" › ")), title,
                   error: (.failureMessages[0] | split("\n")[0]),
                   source: ($source + "/" + ($file | sub("^.*/clients/"; "clients/"))
-                    + ((.failureMessages[0] | capture("e2e/[^:\\s]+:(?<line>[0-9]+)")? | "#L" + .line) // "")) }
+                    + ((.failureMessages[0] | capture("e2e/[^:\\s]+:(?<line>[0-9]+)")? | "#L" + .line) // "")),
+                  checkout: (.meta.checkoutUrl // "") }
             ] as $failed
             | (if ($failed | length) == 1 then
                  ":bufo-has-activated: E2E test failed: *\($failed[0].name)*: \($failed[0].title) (\($event))"
@@ -97,8 +94,8 @@ jobs:
                end) as $header
             | [ $header,
                 ($failed[] | (if ($failed | length) > 1 then "*\(.name)*: \(.title)\n" else "" end)
-                  + "```\(.error)```\n• <\(.source)|Test source>"),
-                "• <\($checkout)|Checkout link> (try it yourself)",
+                  + "```\(.error)```\n• <\(.source)|Test source>"
+                  + (if .checkout == "" then "" else " · <\(.checkout)|Open the checkout>" end)),
                 "• <\($run)|View run>" + (if $artifacts == "" then "" else " · <\($artifacts)|Screenshots and browser logs>" end)
               ] | { channel: $channel, text: join("\n") }' > slack-message.json
           screenshot=$(ls clients/apps/web/e2e/artifacts/*/*/*.png 2>/dev/null | sort | tail -1)
