@@ -25,6 +25,7 @@ generate language:
 generate-all:
   uv run -m cli generate openapi/* ../python --language python --clear
   uv run -m cli generate openapi/* ../typescript --language typescript --clear
+  uv run -m cli generate openapi/* ../effect --language effect --clear
 
 docs-openapi:
   uv run -m cli docs-openapi openapi/*

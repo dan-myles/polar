@@ -50,7 +50,7 @@ parser_docs_openapi.add_argument(
 parser_generate.add_argument(
     "--language",
     type=str,
-    choices=["python", "typescript"],
+    choices=["python", "typescript", "effect"],
     default="python",
     help="Language to emit the SDK in (default: python).",
 )
@@ -141,6 +141,10 @@ elif args.command == "generate":
             from typescript.emitter import TypeScriptEmitter
 
             emitter = TypeScriptEmitter(ir, args.version, prerelease=prerelease)
+        case "effect":
+            from effect.emitter import EffectEmitter
+
+            emitter = EffectEmitter(ir, args.version, prerelease=prerelease)
         case _:
             print(f"Error: Unsupported language {language}.", file=sys.stderr)
             sys.exit(1)
