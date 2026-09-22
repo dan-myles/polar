@@ -217,6 +217,16 @@ export class App {
           await this.page.keyPress('Escape')
           await this.stagehand.act(`Open the ${what} dropdown`)
           await this.page.type(value)
+          await expect
+            .poll(
+              () =>
+                this.page.evaluate(() => document.activeElement?.textContent),
+              {
+                timeout: 5_000,
+                message: `highlighted option in the ${what} dropdown`,
+              },
+            )
+            .toBe(value)
           await this.page.keyPress('Enter')
           await sleep(2_000)
           return chosen()
